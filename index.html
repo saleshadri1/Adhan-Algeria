@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>مواقيت الصلاة - الجزائر</title>
+<meta name="theme-color" content="#0b4d2e">
+<style>
+  :root{--green:#0b4d2e;--gold:#d4af37;--muted:#dfeee0}
+  body{margin:0;font-family:Tahoma, Arial, sans-serif;background:linear-gradient(180deg,var(--green),#083a22);color:var(--muted);text-align:center}
+  header{padding:16px;color:var(--gold);font-size:20px;font-weight:700}
+  .card{background:rgba(255,255,255,0.03);margin:14px auto;padding:12px;border-radius:12px;max-width:900px}
+  .center{display:flex;flex-direction:column;gap:8px;align-items:center}
+  select,input{padding:10px;border-radius:8px;border:0;background:rgba(255,255,255,0.04);color:var(--muted);min-width:220px}
+  button{padding:10px 14px;border-radius:10px;border:0;background:linear-gradient(90deg,var(--gold),#ffd966);color:#063218;font-weight:700;cursor:pointer}
+  .times{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:12px}
+  .time{background:rgba(0,0,0,0.12);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+  .overlay{position:fixed;inset:0;background:rgba(7,43,14,0.97);display:none;flex-direction:column;justify-content:center;align-items:center;color:var(--gold);z-index:9999}
+  .overlay h1{font-size:2rem;margin:6px}
+  .ad-box{width:100%;max-width:560px;margin-top:18px;padding:10px;background:#fff;color:#000;border-radius:8px;display:none}
+  .small{font-size:13px;color:#bcd9c2}
+  #clock{margin-top:12px;font-weight:700;font-size:16px;color:#ffd966}
+  @media(max-width:520px){ header{font-size:18px} .ad-box{padding:8px} }
+</style>
+</head>
+<body>
+<header>🕌 مواقيت الصلاة — الجزائر</header>
+
+<div class="card center" id="intro">
+  <div class="small">أول مرة؟ فعّل الصلاحيات لتعمل المزايا الكاملة</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px">
+    <button id="btnEnableAll">تفعيل الموقع والإشعارات والأصوات</button>
+  </div>
+  <div class="small">إذا رفض المتصفح الموقع سيعرض قائمة الولايات يدوياً.</div>
+</div>
+
+<div class="card" id="main" style="display:none">
+  <div class="center">
+    <div id="status" class="small">جارٍ الحصول على المواقيت...</div>
+
+    <div id="manualSelect" style="display:none;margin-top:8px">
+      <label class="small">اختر ولايتك (اختياري)</label><br>
+      <select id="wilayaSelect"></select>
+    </div>
+
+    <div class="times" id="timesBox" style="margin-top:12px"></div>
+    <div id="nextBox" class="small" style="margin-top:12px"></div>
+    <div id="clock">00:00:00</div>
+  </div>
+</div>
+
+<!-- شاشة الأذان -->
+<div class="overlay" id="adhanOverlay">
+  <h1 id="adhanTitle">📢 حان وقت الأذان</h1>
+  <div id="adhanCountdown" class="small" style="margin-top:8px"></div>
+  <div class="ad-box" id="adBox">
+    <!-- إعلان AdSense يظهر هنا عند الاتصال بالإنترنت -->
+    <div id="adsPlaceholder">🔔 إعلان (يظهر فقط إذا أونلاين)</div>
+  </div>
+</div>
+
+<!-- عنصر الصوت: اجعل adhan.mp3 في نفس المجلد -->
+<audio id="adhanAudio" src="adhan.mp3" preload="auto"></audio>
+
+<script>
+/* ---------- إعدادات الولايات مع الإحداثيات ---------- */
+const wilayas = {
+  "أدرار": { lat:27.8717, lon:-0.2833 },
+  "الشلف": { lat:36.1653, lon:1.3345 },
+  "الأغواط": { lat:33.4810, lon:2.5230 },
+  "أم البواقي": { lat:35.8775, lon:7.1139 },
+  "باتنة": { lat:35.5556, lon:6.1744 },
+  "بجاية": { lat:36.7509, lon:5.0567 },
+  "بسكرة": { lat:34.8504, lon:5.7280 },
+  "بشار": { lat:31.6167, lon:-2.2167 },
+  "البليدة": { lat:36.5556, lon:2.8322 },
+  "البويرة": { lat:36.3725, lon:3.9003 },
+  "تمنراست": { lat:22.7869, lon:5.5228 },
+  "تبسة": { lat:35.4072, lon:8.1247 },
+  "تلمسان": { lat:35.0042, lon:-1.3299 },
+  "تيارت": { lat:35.3675, lon:1.3069 },
+  "تيزي وزو": { lat:36.7167, lon:4.0500 },
+  "الجزائر العاصمة": { lat:36.7538, lon:3.0588 },
+  "الجلفة": { lat:34.6667, lon:3.2667 },
+  "جيجل": { lat:36.8167, lon:5.7667 },
+  "سطيف": { lat:36.1900, lon:5.4167 },
+  "سعيدة": { lat:34.8333, lon:0.1667 },
+  "سكيكدة": { lat:36.8667, lon:6.9000 },
+  "سيدي بلعباس": { lat:35.2000, lon:-0.6333 },
+  "عنابة": { lat:36.9000, lon:7.7667 },
+  "قالمة": { lat:36.4667, lon:7.4333 },
+  "قسنطينة": { lat:36.3650, lon:6.6147 },
+  "المدية": { lat:36.2667, lon:2.7500 },
+  "مستغانم": { lat:35.9333, lon:0.1000 },
+  "المسيلة": { lat:35.7000, lon:4.5667 },
+  "معسكر": { lat:35.6167, lon:0.1500 },
+  "ورقلة": { lat:32.3667, lon:5.3333 },
+  "وهران": { lat:35.6961, lon:-0.6333 },
+  "البيض": { lat:33.6833, lon:1.6167 },
+  "إليزي": { lat:26.3333, lon:8.4667 },
+  "برج بوعريريج": { lat:36.0667, lon:4.7667 },
+  "بومرداس": { lat:36.7667, lon:3.4833 },
+  "الطارف": { lat:36.7667, lon:8.3000 },
+  "تندوف": { lat:27.6667, lon:-8.1333 },
+  "تيسمسيلت": { lat:35.6075, lon:1.8106 },
+  "الوادي": { lat:33.1000, lon:6.8333 },
+  "خنشلة": { lat:35.4333, lon:7.1333 },
+  "سوق أهراس": { lat:36.2500, lon:7.9500 },
+  "تيبازة": { lat:36.6000, lon:2.4500 },
+  "ميلة": { lat:36.4500, lon:6.1667 },
+  "عين الدفلى": { lat:36.2500, lon:1.9833 },
+  "النعامة": { lat:33.2667, lon:-0.2667 },
+  "عين تموشنت": { lat:35.2969, lon:-1.1403 },
+  "غرداية": { lat:32.4900, lon:3.6700 },
+  "غليزان": { lat:35.0000, lon:-0.6667 },
+  "تيميمون": { lat:29.2500, lon:0.2667 },
+  "برج باجي مختار": { lat:21.4167, lon:-0.9833 },
+  "أولاد جلال": { lat:34.2500, lon:1.8333 },
+  "بني عباس": { lat:35.6000, lon:7.4500 },
+  "إن صالح": { lat:28.5667, lon:8.1000 },
+  "إن قزام": { lat:27.1667, lon:5.1167 },
+  "تقرت": { lat:33.6167, lon:5.3667 },
+  "جانت": { lat:23.1667, lon:5.4167 },
+  "المغير": { lat:32.2667, lon:5.2333 },
+  "المنيعة": { lat:32.8833, lon:0.5833 }
+};
+
+/* ---------- عناصر DOM ---------- */
+const btnEnableAll = document.getElementById('btnEnableAll');
+const intro = document.getElementById('intro');
+const main = document.getElementById('main');
+const statusEl = document.getElementById('status');
+const manualSelect = document.getElementById('manualSelect');
+const wilayaSelect = document.getElementById('wilayaSelect');
+const timesBox = document.getElementById('timesBox');
+const nextBox = document.getElementById('nextBox');
+const adhanAudio = document.getElementById('adhanAudio');
+const adhanOverlay = document.getElementById('adhanOverlay');
+const adBox = document.getElementById('adBox');
+const adPlaceholder = document.getElementById('adsPlaceholder');
+const clockEl = document.getElementById('clock');
+
+let timings = null;
+let scheduledTimers = [];
+
+/* ---------- املأ القائمة ---------- */
+Object.keys(wilayas).forEach(w => {
+  const opt = document.createElement('option');
+  opt.value = w; opt.textContent = w;
+  wilayaSelect.appendChild(opt);
+});
+
+/* ---------- طلب الصلاحيات ---------- */
+async function requestAllPermissions() {
+  try { await adhanAudio.play(); adhanAudio.pause(); } catch(e){console.warn(e);}
+  if ('Notification' in window) { try { await Notification.requestPermission(); } catch(e){} }
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const {latitude:lat,longitude:lon}=pos.coords;
+      localStorage.setItem('lastLocation', JSON.stringify({lat,lon}));
+      initWithLocation(lat, lon,'حسب موقعك');
+    }, err => { manualSelect.style.display='block'; main.style.display='block'; intro.style.display='none'; statusEl.textContent='الموقع مرفوض — اختر ولايتك يدوياً.'; }, {maximumAge:600000, timeout:8000});
+  } else { statusEl.textContent='المتصفح لا يدعم تحديد الموقع — اختر ولايتك يدوياً.'; manualSelect.style.display='block'; main.style.display='block'; intro.style.display='none'; }
+}
+
+/* حدث الزر */
+btnEnableAll.addEventListener('click', () => requestAllPermissions());
+
+/* اختيار يدوي */
+wilayaSelect.addEventListener('change', () => {
+  const selected = wilayaSelect.value;
+  if(wilayas[selected]) {
+    const {lat, lon} = wilayas[selected];
+    localStorage.setItem('selectedWilaya', selected);
+    initWithLocation(lat, lon, selected);
+  }
+});
+
+/* جلب المواقيت */
+async function initWithLocation(lat, lon, placeName='حسب موقعك') {
+  try {
+    statusEl.textContent = `تحميل مواقيت ${placeName}...`;
+    main.style.display = 'block'; intro.style.display='none';
+    const timestamp = Math.floor(Date.now()/1000);
+    const url = `https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lon}&method=2`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if(json && json.data && json.data.timings) {
+      timings = json.data.timings;
+      renderTimings(timings);
+      scheduleAdhans(timings);
+      statusEl.textContent = `الولاية: ${placeName}`;
+      localStorage.setItem('lastTimings', JSON.stringify({timings, placeName, lat, lon}));
+    } else { throw new Error('no timings'); }
+  } catch(e){
+    console.warn(e);
+    const cached = localStorage.getItem('lastTimings');
+    if(cached) {
+      const obj = JSON.parse(cached); timings=obj.timings; renderTimings(timings);
+      statusEl.textContent=`عرض آخر مواقيت محفوظ (${obj.placeName}) — اضغط تفعيل لتحديث عند وجود إنترنت.`;
+    } else {
+      statusEl.textContent='فشل جلب التواقيت — تأكد من الإنترنت أو اختر الولاية يدوياً.';
+      manualSelect.style.display='block'; main.style.display='block'; intro.style.display='none';
+    }
+  }
+}
+
+/* عرض المواقيت */
+function renderTimings(t) {
+  timesBox.innerHTML=''; const order=['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+  const arab={Fajr:'الفجر',Sunrise:'الشروق',Dhuhr:'الظهر',Asr:'العصر',Maghrib:'المغرب',Isha:'العشاء'};
+  order.forEach(k=>{
+    const div=document.createElement('div'); div.className='time';
+    div.innerHTML=`<strong>${arab[k]}</strong><div style="margin-top:6px;font-weight:700">${t[k]}</div>`;
+    timesBox.appendChild(div);
+  });
+  updateNextPrayer(t);
+}
+
+/* الصلاة القادمة */
+function updateNextPrayer(t){
+  if(!t) return;
+  const order=['Fajr','Dhuhr','Asr','Maghrib','Isha']; const now=new Date();
+  let nextName=null,nextDate=null;
+  for(let k of order){ const dt=parseTimeToDate(t[k],now); if(dt>now){nextName=k; nextDate=dt; break;} }
+  if(!nextDate){ const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1); nextDate=parseTimeToDate(t['Fajr'],tomorrow); nextName='Fajr'; }
+  const diff=Math.max(0,Math.floor((nextDate-now)/1000));
+  nextBox.textContent=`الصلاة القادمة: ${toArabicName(nextName)} — بعد ${formatDuration(diff)}`;
+}
+
+/* تحويل الاسم للعربية */
+function toArabicName(k){ return ({Fajr:'الفجر',Dhuhr:'الظهر',Asr:'العصر',Maghrib:'المغرب',Isha:'العشاء'})[k]||k; }
+function parseTimeToDate(timeStr,baseDate){ const [hh,mm]=timeStr.split(':').map(n=>parseInt(n,10)); return new Date(baseDate.getFullYear(),baseDate.getMonth(),baseDate.getDate(),hh,mm,0,0);}
+function formatDuration(sec){ const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60; return `${h}سا ${m}د ${s}ث`; }
+
+/* الأذان */
+function clearScheduled(){ scheduledTimers.forEach(id=>clearTimeout(id)); scheduledTimers=[]; }
+function scheduleAdhans(t){ clearScheduled(); if(!t) return; const keys=['Fajr','Dhuhr','Asr','Maghrib','Isha']; const now=new Date();
+  keys.forEach(k=>{ let dt=parseTimeToDate(t[k],now); if(dt<=now) return; const ms=dt-now; const id=setTimeout(()=>{ triggerAdhan(k); }, ms); scheduledTimers.push(id); });
+}
+function triggerAdhan(k){
+  adhanOverlay.style.display='flex';
+  document.getElementById('adhanTitle').textContent=`📢 حان الآن ${toArabicName(k)}`;
+  adBox.style.display=navigator.onLine?'block':'none';
+  adhanAudio.currentTime=0; adhanAudio.play().catch(e=>console.warn(e));
+  adhanAudio.onended=()=>{ adhanOverlay.style.display='none'; adhanAudio.onended=null; };
+  setTimeout(()=>{ adhanOverlay.style.display='none'; },180000);
+}
+
+/* تايمر أسفل الشاشة */
+function updateClock(){ const now=new Date(); clockEl.textContent=now.toLocaleTimeString('ar-EG'); }
+setInterval(updateClock,1000); updateClock();
+
+/* عند تحميل الصفحة */
+window.addEventListener('load', async ()=>{
+  const savedWilaya=localStorage.getItem('selectedWilaya'); if(savedWilaya) wilayaSelect.value=savedWilaya;
+  const lastLoc=localStorage.getItem('lastLocation'); if(lastLoc){ const loc=JSON.parse(lastLoc); initWithLocation(loc.lat,loc.lon,'م
